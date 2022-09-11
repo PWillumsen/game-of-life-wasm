@@ -1,5 +1,5 @@
 // import * as wasm from "wasm-game-of-life";
-import { Universe, Cell } from "wasm-game-of-life";
+import { Universe} from "wasm-game-of-life";
 import { memory } from "wasm-game-of-life/wasm_game_of_life_bg";
 
 const CELL_SIZE = 7; // px
@@ -140,23 +140,22 @@ const renderLoop = () => {
   fps.render(); //new
 
   universe.tick();
-  // drawGrid();
+  drawGrid();
   drawCells();
 
   animationId = requestAnimationFrame(renderLoop);
+  pause();
 };
 
 const drawGrid = () => {
   ctx.beginPath();
   ctx.strokeStyle = GRID_COLOR;
 
-  // Vertical lines.
   for (let i = 0; i <= width; i++) {
     ctx.moveTo(i * (CELL_SIZE + 1) + 1, 0);
     ctx.lineTo(i * (CELL_SIZE + 1) + 1, (CELL_SIZE + 1) * height + 1);
   }
 
-  // Horizontal lines.
   for (let j = 0; j <= height; j++) {
     ctx.moveTo(0, j * (CELL_SIZE + 1) + 1);
     ctx.lineTo((CELL_SIZE + 1) * width + 1, j * (CELL_SIZE + 1) + 1);
@@ -166,44 +165,39 @@ const drawGrid = () => {
 };
 
 const drawCells = () => {
-  const cellsPtr = universe.cells();
-  const cells = new Uint8Array(memory.buffer, cellsPtr, width * height);
-
+  const cellsAlivePtr = universe.getNewAlive();
+  const cellsAliveLen = universe.getAliveLen(); 
+  const cellsAlive = new Uint32Array(memory.buffer, cellsAlivePtr, cellsAliveLen);
+  
+  const cellsDeadPtr = universe.getNewDead();
+  const cellsDeadLen = universe.getDeadLen(); 
+  const cellsDead = new Uint32Array(memory.buffer, cellsDeadPtr , cellsDeadLen);
+  
   ctx.beginPath();
 
   ctx.fillStyle = ALIVE_COLOR;
-  for (let row = 0; row < height; row++) {
-    for (let col = 0; col < width; col++) {
-      const idx = getIndex(row, col);
-      if (cells[idx] !== Cell.Alive) {
-        continue;
-      }
-
+  for (let idx = 0; idx < cellsAliveLen; idx = idx + 2) {
+    const row = cellsAlive[idx];
+    const col = cellsAlive[idx+1];
       ctx.fillRect(
         col * (CELL_SIZE + 1) + 1,
         row * (CELL_SIZE + 1) + 1,
         CELL_SIZE,
         CELL_SIZE
       );
-    }
   }
+  
 
-  // Dead cells.
   ctx.fillStyle = DEAD_COLOR;
-  for (let row = 0; row < height; row++) {
-    for (let col = 0; col < width; col++) {
-      const idx = getIndex(row, col);
-      if (cells[idx] !== Cell.Dead) {
-        continue;
-      }
-
+  for (let idx = 0; idx < cellsDeadLen; idx = idx + 2) {
+    const row = cellsDead[idx];
+    const col = cellsDead[idx+1];
       ctx.fillRect(
         col * (CELL_SIZE + 1) + 1,
         row * (CELL_SIZE + 1) + 1,
         CELL_SIZE,
         CELL_SIZE
       );
-    }
   }
   ctx.stroke();
 };
