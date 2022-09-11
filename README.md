@@ -2,7 +2,7 @@
 ## TODO
 
  - imlpement delta-based design
- - swap canvas for WebGLkkkkkj
+ - swap canvas for WebGL
 
 
 ### Run
