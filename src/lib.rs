@@ -1,7 +1,6 @@
 mod utils;
 
-use js_sys;
-use std::{collections::HashSet, fmt, usize};
+use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -25,42 +24,89 @@ macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
 
-type Cell = (i32, i32);
+type Cell = (u32, u32);
 
 #[wasm_bindgen]
 pub struct Universe {
-    width: i32,
-    height: i32,
+    width: u32,
+    height: u32,
     alive_cells: HashSet<Cell>,
-    alive_cells_buffer: HashSet<Cell>,
-    new_alive: Vec<i32>,
-    new_dead: Vec<i32>,
+    new_alive: Vec<u32>,
+    new_dead: Vec<u32>,
 }
 
 impl Universe {
-    fn live_neighbor_count(&self, cell: &Cell) -> u8 {
-        let mut count = 0;
-        let (row, column) = cell;
+    // fn live_neighbor_count(&self, cell: &Cell) -> u8 {
+    //     let mut count = 0;
+    //     let (row, column) = cell;
 
-        for delta_row in [row - 1, *row, row + 1].iter().cloned() {
-            for delta_col in [column - 1, *column, column + 1].iter().cloned() {
-                if delta_row == 0 && delta_col == 0 {
-                    continue;
-                }
-                if self.alive_cells.contains(&(delta_row, delta_col)) {
-                    count += 1;
-                }
-            }
-        }
-        count
-    }
+    //     for delta_row in [row - 1, *row, row + 1].iter().cloned() {
+    //         for delta_col in [column - 1, *column, column + 1].iter().cloned() {
+    //             if delta_row == 0 && delta_col == 0 {
+    //                 continue;
+    //             }
+    //             if self.alive_cells.contains(&(delta_row, delta_col)) {
+    //                 count += 1;
+    //             }
+    //         }
+    //     }
+    //     count
+    // }
 
     pub fn get_cells(&self) -> &HashSet<Cell> {
         &self.alive_cells
         // &self.new_alive
     }
+    fn live_neighbor_count(&self, cell: Cell) -> u8 {
+        let (row, column) = cell;
 
-    pub fn set_cells(&mut self, cells: &[(i32, i32)]) {
+        let mut count = 0;
+
+        let north = if row == 0 { self.height - 1 } else { row - 1 };
+
+        let south = if row == self.height - 1 { 0 } else { row + 1 };
+
+        let west = if column == 0 {
+            self.width - 1
+        } else {
+            column - 1
+        };
+
+        let east = if column == self.width - 1 {
+            0
+        } else {
+            column + 1
+        };
+
+        if self.alive_cells.contains(&(north, west)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(north, column)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(north, east)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(row, west)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(row, east)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(south, west)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(south, column)) {
+            count += 1;
+        }
+        if self.alive_cells.contains(&(south, east)) {
+            count += 1;
+        }
+
+        count
+    }
+
+    pub fn set_cells(&mut self, cells: &[(u32, u32)]) {
         for (row, col) in cells.iter().cloned() {
             self.alive_cells.insert((row, col));
         }
@@ -70,18 +116,14 @@ impl Universe {
 #[wasm_bindgen]
 impl Universe {
     pub fn new() -> Universe {
-        let width = 32;
-        let height = 32;
-
-        let new_alive = vec![10, 13, 11, 13, 12, 13, 11, 11, 12, 12];
+        let width = 256;
+        let height = 256;
 
         Universe {
             width,
             height,
             alive_cells: HashSet::new(),
-            alive_cells_buffer: HashSet::new(),
-            // new_alive: Vec::new(),
-            new_alive,
+            new_alive: Vec::new(),
             new_dead: Vec::new(),
         }
     }
@@ -89,74 +131,57 @@ impl Universe {
     pub fn tick(&mut self) {
         // Split up. Make simpler. Find differences in other function
         // do one loop, dont clear alive_cells just remove
-        // back to fixedbitset
 
-        let _timer = Timer::new("Universe::tick");
+        // let _timer = Timer::new("Universe::tick");
         self.new_alive.clear();
         self.new_dead.clear();
-        self.alive_cells_buffer.clear();
-
-        for cell in self.alive_cells.iter() {
-            let live_neighbors = self.live_neighbor_count(cell);
-
-            if (live_neighbors == 2) | (live_neighbors == 3) {
-                console_log!("Adding ({:?}) neighbors = {}", cell, live_neighbors);
-                self.alive_cells_buffer.insert(*cell);
-            }
-        }
 
         for row in 0..self.height {
             for col in 0..self.width {
-                if row < 0 || row > self.height || col < 0 || col > self.width {
-                    continue;
-                }
-
+                let live_neighbors = self.live_neighbor_count((row, col));
                 if self.alive_cells.contains(&(row, col)) {
-                    continue;
-                }
-                let live_neighbors = self.live_neighbor_count(&(row, col));
-                if live_neighbors == 3 {
-                    console_log!("Adding ({},{}) neighbors = {}", row, col, live_neighbors);
-                    self.alive_cells_buffer.insert((row, col));
+                    if (live_neighbors == 2) | (live_neighbors == 3) {
+                        continue;
+                    } else {
+                        self.new_dead.push(row);
+                        self.new_dead.push(col);
+                    }
+                } else {
+                    if live_neighbors == 3 {
+                        self.new_alive.push(row);
+                        self.new_alive.push(col);
+                    }
                 }
             }
         }
 
-        for (row, col) in self.alive_cells_buffer.difference(&self.alive_cells) {
-            self.new_alive.push(*row);
-            self.new_alive.push(*col);
+        for i in (0..self.new_alive.len()).step_by(2) {
+            let row = self.new_alive[i];
+            let col = self.new_alive[i + 1];
+            self.alive_cells.insert((row, col));
         }
-
-        for (row, col) in self.alive_cells.difference(&self.alive_cells_buffer) {
-            self.new_dead.push(*row);
-            self.new_dead.push(*col);
+        for i in (0..self.new_dead.len()).step_by(2) {
+            let row = self.new_dead[i];
+            let col = self.new_dead[i + 1];
+            self.alive_cells.remove(&(row, col));
         }
-
-        console_log!("new alive: {:?}", self.new_alive);
-        console_log!("new dead: {:?}", self.new_dead);
-
-        self.alive_cells.clear();
-        self.alive_cells = self.alive_cells_buffer.clone();
-        console_log!("alive cells buffer: {:?}", self.alive_cells_buffer);
-        console_log!("alive cells: {:?}", self.alive_cells);
     }
 
     pub fn clear(&mut self) {
-        // self.new_dead = self.alive_cells.clone().into_iter().collect();
         self.alive_cells.clear();
     }
 
-    pub fn set_width(&mut self, width: i32) {
+    pub fn set_width(&mut self, width: u32) {
         self.width = width;
         self.clear();
     }
 
-    pub fn set_height(&mut self, height: i32) {
+    pub fn set_height(&mut self, height: u32) {
         self.height = height;
         self.clear();
     }
 
-    pub fn toggle_cell(&mut self, row: i32, column: i32) {
+    pub fn toggle_cell(&mut self, row: u32, column: u32) {
         if self.alive_cells.contains(&(row, column)) {
             self.alive_cells.remove(&(row, column));
             self.new_dead.push(row);
@@ -169,7 +194,7 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = getNewAlive)]
-    pub fn get_new_alive(&self) -> *const i32 {
+    pub fn get_new_alive(&self) -> *const u32 {
         self.new_alive.as_ptr()
     }
 
@@ -179,7 +204,7 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = getNewDead)]
-    pub fn get_new_dead(&self) -> *const i32 {
+    pub fn get_new_dead(&self) -> *const u32 {
         self.new_dead.as_ptr()
     }
 
@@ -189,19 +214,14 @@ impl Universe {
     }
 
     #[wasm_bindgen(js_name = getWidth)]
-    pub fn get_width(&self) -> i32 {
+    pub fn get_width(&self) -> u32 {
         self.width
     }
 
     #[wasm_bindgen(js_name = getHeight)]
-    pub fn get_height(&self) -> i32 {
+    pub fn get_height(&self) -> u32 {
         self.height
     }
-
-    // #[wasm_bindgen(js_name = getAllAlive)]
-    // pub fn cells(&self) -> *const Cell {
-    //     self.alive_cells.as_ptr()
-    // }
 }
 
 pub struct Timer<'a> {

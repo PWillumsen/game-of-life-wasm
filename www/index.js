@@ -144,7 +144,7 @@ const renderLoop = () => {
   drawCells();
 
   animationId = requestAnimationFrame(renderLoop);
-  pause();
+  // pause();
 };
 
 const drawGrid = () => {
@@ -169,10 +169,13 @@ const drawCells = () => {
   const cellsAliveLen = universe.getAliveLen(); 
   const cellsAlive = new Uint32Array(memory.buffer, cellsAlivePtr, cellsAliveLen);
   
+  // console.log("new alive ", cellsAlive);
+  
   const cellsDeadPtr = universe.getNewDead();
   const cellsDeadLen = universe.getDeadLen(); 
   const cellsDead = new Uint32Array(memory.buffer, cellsDeadPtr , cellsDeadLen);
   
+  // console.log("new dead ", cellsDead);
   ctx.beginPath();
 
   ctx.fillStyle = ALIVE_COLOR;
